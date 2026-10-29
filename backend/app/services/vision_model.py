@@ -4,6 +4,7 @@ import io
 import time
 import uuid
 import logging
+from pathlib import Path
 from typing import Dict, List, Tuple, Any, Optional
 from PIL import Image, ImageStat
 import httpx
@@ -95,31 +96,80 @@ STATIC_DISCLAIMER = (
 class VisionModelService:
     def __init__(self):
         self.provider = settings.AI_PROVIDER
-        self.gemini_key = settings.GEMINI_API_KEY
+        self.gemini_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
         self.openai_key = settings.OPENAI_API_KEY
+        self.yolo_model = None
+        self._init_yolo()
+
+    def get_available_methods(self) -> List[Dict[str, Any]]:
+        """Returns metadata for selectable AI detection methods."""
+        has_gemini = bool(self.gemini_key or settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY"))
+        has_yolo = self.yolo_model is not None
+        return [
+            {
+                "id": "yolo",
+                "name": "Method 1: Local YOLO AI Model",
+                "badge": "Edge AI",
+                "model_tag": "YOLOv8 Dental",
+                "description": "On-device fine-tuned neural network for immediate tooth and gingival lesion detection without external network calls.",
+                "available": has_yolo,
+                "is_default": True
+            },
+            {
+                "id": "gemini",
+                "name": "Method 2: Google Gemini AI Vision (API)",
+                "badge": "Cloud Multimodal API",
+                "model_tag": f"Gemini {settings.GEMINI_MODEL}",
+                "description": f"Cloud multimodal AI reasoning through Google Gemini Vision API ({settings.GEMINI_MODEL}) for holistic visual analysis.",
+                "available": has_gemini,
+                "is_default": False
+            }
+        ]
+
+    def _init_yolo(self):
+        """Initializes fine-tuned YOLO model if weights exist."""
+        try:
+            cand = Path(settings.YOLO_MODEL_PATH)
+            if not cand.is_absolute():
+                # Check relative to backend or workspace root
+                cand_workspace = Path(__file__).resolve().parents[3] / settings.YOLO_MODEL_PATH
+                if cand_workspace.exists():
+                    cand = cand_workspace
+
+            if cand.exists():
+                from ultralytics import YOLO
+                self.yolo_model = YOLO(str(cand))
+                logger.info(f"Loaded trained YOLO dental screening model from: {cand}")
+            else:
+                logger.info(f"Trained YOLO checkpoint not found at: {cand}. Falling back to configured providers.")
+        except Exception as e:
+            logger.warning(f"Failed to initialize local YOLO model: {e}")
 
     async def analyze_photos(
         self,
         images: Dict[str, Tuple[bytes, str, Image.Image]],  # view -> (bytes, mime, PIL.Image)
         request_id: str,
-        test_scenario: Optional[str] = None
+        test_scenario: Optional[str] = None,
+        detection_method: Optional[str] = None
     ) -> ScreeningResponse:
         """
         Main entry point for analyzing 3 intraoral photos.
-        Dispatches to Gemini, OpenAI, or intelligent simulation depending on configuration.
+        Dispatches to Method 1 (Local YOLO) or Method 2 (Gemini Vision API), or test simulation.
         """
         # Quality check first (FR-15)
         quality_issues = self._check_basic_image_quality(images)
         
         # Check active provider
-        active_provider = self._resolve_provider()
-        logger.info(f"[{request_id}] Using vision provider: {active_provider}")
+        active_provider = self._resolve_provider(detection_method)
+        logger.info(f"[{request_id}] Requested method: {detection_method} -> Using vision provider: {active_provider}")
 
         try:
             if test_scenario or active_provider == "mock":
                 return self._simulate_screening(images, request_id, quality_issues, test_scenario)
             elif active_provider == "gemini":
                 return await self._call_gemini(images, request_id, quality_issues)
+            elif active_provider == "yolo" and self.yolo_model is not None:
+                return self._call_yolo(images, request_id, quality_issues)
             elif active_provider == "openai":
                 return await self._call_openai(images, request_id, quality_issues)
             else:
@@ -130,14 +180,188 @@ class VisionModelService:
             logger.warning(f"[{request_id}] Falling back to high-fidelity screening engine")
             return self._simulate_screening(images, request_id, quality_issues, test_scenario or "safe_fallback")
 
-    def _resolve_provider(self) -> str:
+    def _resolve_provider(self, requested_method: Optional[str] = None) -> str:
+        gemini_key = self.gemini_key or settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
+        if requested_method and requested_method.lower() in ["yolo", "gemini", "openai", "mock"]:
+            method = requested_method.lower()
+            if method == "gemini" and gemini_key:
+                return "gemini"
+            elif method == "yolo" and self.yolo_model is not None:
+                return "yolo"
+            elif method == "openai" and self.openai_key:
+                return "openai"
+            elif method == "mock":
+                return "mock"
+            # Fallbacks if requested is unavailable
+            if method == "gemini" and not gemini_key and self.yolo_model is not None:
+                logger.warning("Gemini requested but key missing; falling back to local YOLO model")
+                return "yolo"
+            if method == "yolo" and self.yolo_model is None and gemini_key:
+                logger.warning("YOLO requested but weights missing; falling back to Gemini API")
+                return "gemini"
+
         if self.provider != "auto":
             return self.provider
-        if self.gemini_key:
+        if self.yolo_model is not None:
+            return "yolo"
+        if gemini_key:
             return "gemini"
         if self.openai_key:
             return "openai"
         return "mock"
+
+    def _call_yolo(
+        self,
+        images: Dict[str, Tuple[bytes, str, Image.Image]],
+        request_id: str,
+        quality_map: Dict[str, Dict[str, Any]]
+    ) -> ScreeningResponse:
+        """
+        Inference using fine-tuned YOLO detector trained according to DentalAI Model Creation Workflow.
+        """
+        poor_views = [v for v, q in quality_map.items() if q["status"] == "poor_quality"]
+        if len(poor_views) >= 2:
+            return ScreeningResponse(
+                request_id=request_id,
+                status=ScreeningStatus.UNABLE_TO_ASSESS,
+                summary="Visual screening could not be completed reliably due to suboptimal image quality (lighting or blur) in submitted photographs.",
+                findings=[],
+                view_assessments={
+                    v: ViewAssessment(
+                        view=ViewType(v),
+                        status=quality_map.get(v, {}).get("status", "unable_to_assess"),
+                        quality_note=quality_map.get(v, {}).get("note", "Unable to assess view"),
+                        findings_count=0
+                    ) for v in ["front", "upper", "lower"]
+                },
+                limitations=STATIC_LIMITATIONS,
+                emergency_notice=STATIC_EMERGENCY_NOTICE,
+                disclaimer=STATIC_DISCLAIMER,
+                timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                detection_method="yolo",
+                model_name="Method 1: Local YOLOv8 Fine-Tuned Dental Model"
+            )
+
+        CLASS_METADATA = {
+            "suspected_caries": {
+                "label": "possible_surface_irregularity",
+                "title": "Suspected Enamel / Fissure Cavitation",
+                "description": "Localized dark pit/fissure appearance suspicious for enamel demineralization or cavitation. Tactile and radiographic examination recommended.",
+                "severity": "review_recommended"
+            },
+            "gum_redness": {
+                "label": "possible_visible_gingival_redness",
+                "title": "Marginal Gingival Erythema",
+                "description": "Localized erythema along the marginal gingiva/gumline suggesting gingival inflammation. Periodontal sulcus examination recommended.",
+                "severity": "mild_concern"
+            },
+            "tooth_discoloration": {
+                "label": "possible_visible_discoloration",
+                "title": "Enamel Chromatic Discoloration",
+                "description": "Noticeable extrinsic or intrinsic chromatic variation on the tooth surface compared to adjacent teeth.",
+                "severity": "mild_concern"
+            },
+            "tooth_chip": {
+                "label": "possible_surface_irregularity",
+                "title": "Incisal / Occlusal Tooth Structure Loss",
+                "description": "Visible irregularity along incisal edge or cusp tip suggestive of chipping, wear facet, or fracture.",
+                "severity": "moderate_concern"
+            },
+            "oral_lesion": {
+                "label": "unusual_tissue_appearance",
+                "title": "Oral Mucosal Tissue Variation",
+                "description": "Localized circumscribed variation in mucosal appearance. Visual and clinical soft-tissue inspection advised.",
+                "severity": "review_recommended"
+            }
+        }
+
+        findings: List[Finding] = []
+        view_assessments = {}
+
+        for view_name in ["front", "upper", "lower"]:
+            _, _, pil_img = images[view_name]
+            q_info = quality_map.get(view_name, {"status": "assessed", "note": "Clear view"})
+
+            results = self.yolo_model.predict(
+                source=pil_img,
+                conf=settings.YOLO_CONF_THRESHOLD,
+                imgsz=640,
+                device="cpu",
+                verbose=False
+            )
+
+            view_findings_count = 0
+            for r in results:
+                if r.boxes is None:
+                    continue
+                for box in r.boxes:
+                    cls_id = int(box.cls.item())
+                    cls_name = self.yolo_model.names.get(cls_id, f"class_{cls_id}")
+                    conf = float(box.conf.item())
+
+                    # Normalized coordinates [xmin, ymin, xmax, ymax]
+                    xyxyn = box.xyxyn[0].tolist()
+                    xmin = max(0.0, min(1.0, float(xyxyn[0])))
+                    ymin = max(0.0, min(1.0, float(xyxyn[1])))
+                    xmax = max(0.0, min(1.0, float(xyxyn[2])))
+                    ymax = max(0.0, min(1.0, float(xyxyn[3])))
+
+                    meta = CLASS_METADATA.get(cls_name, {
+                        "label": "possible_visible_observation",
+                        "title": cls_name.replace("_", " ").title(),
+                        "description": f"Visual observation detected by local YOLO model ({cls_name}).",
+                        "severity": "review_recommended"
+                    })
+
+                    finding = Finding(
+                        id=str(uuid.uuid4())[:8],
+                        view=ViewType(view_name),
+                        label=meta["label"],
+                        title=meta["title"],
+                        description=meta["description"],
+                        confidence=round(conf, 3),
+                        severity=meta["severity"],
+                        localization=BoundingBox(
+                            ymin=round(ymin, 4),
+                            xmin=round(xmin, 4),
+                            ymax=round(ymax, 4),
+                            xmax=round(xmax, 4)
+                        )
+                    )
+                    findings.append(finding)
+                    view_findings_count += 1
+
+            view_assessments[view_name] = ViewAssessment(
+                view=ViewType(view_name),
+                status=q_info["status"],
+                quality_note=q_info["note"],
+                findings_count=view_findings_count
+            )
+
+        if findings:
+            summary = (
+                f"Local YOLO dental screening detector identified {len(findings)} visible area(s) of interest "
+                f"across front, upper, and lower intraoral views. Review by a licensed dentist is required."
+            )
+        else:
+            summary = (
+                "No obvious visible abnormalities detected by the local YOLO model in these three photographs. "
+                "This does not confirm the absence of dental disease or guarantee oral health."
+            )
+
+        return ScreeningResponse(
+            request_id=request_id,
+            status=ScreeningStatus.COMPLETED,
+            summary=summary,
+            findings=findings,
+            view_assessments=view_assessments,
+            limitations=STATIC_LIMITATIONS,
+            emergency_notice=STATIC_EMERGENCY_NOTICE,
+            disclaimer=STATIC_DISCLAIMER,
+            timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            detection_method="yolo",
+            model_name="Method 1: Local YOLOv8 Fine-Tuned Dental Model"
+        )
 
     def _check_basic_image_quality(self, images: Dict[str, Tuple[bytes, str, Image.Image]]) -> Dict[str, Dict[str, Any]]:
         """
@@ -210,7 +434,9 @@ class VisionModelService:
                 limitations=STATIC_LIMITATIONS,
                 emergency_notice=STATIC_EMERGENCY_NOTICE,
                 disclaimer=STATIC_DISCLAIMER,
-                timestamp=timestamp
+                timestamp=timestamp,
+                detection_method="simulation",
+                model_name="High-Fidelity Clinical Simulation Engine"
             )
 
         if scenario == "clean":
@@ -231,7 +457,9 @@ class VisionModelService:
                 limitations=STATIC_LIMITATIONS,
                 emergency_notice=STATIC_EMERGENCY_NOTICE,
                 disclaimer=STATIC_DISCLAIMER,
-                timestamp=timestamp
+                timestamp=timestamp,
+                detection_method="simulation",
+                model_name="High-Fidelity Clinical Simulation Engine"
             )
 
         # If natural images are poor quality (e.g. pitch black or severely overexposed)
@@ -253,7 +481,9 @@ class VisionModelService:
                 limitations=STATIC_LIMITATIONS,
                 emergency_notice=STATIC_EMERGENCY_NOTICE,
                 disclaimer=STATIC_DISCLAIMER,
-                timestamp=timestamp
+                timestamp=timestamp,
+                detection_method="simulation",
+                model_name="High-Fidelity Clinical Simulation Engine"
             )
 
         # High-fidelity visual screening observations with surgically tight bounding boxes
@@ -341,7 +571,9 @@ class VisionModelService:
             limitations=STATIC_LIMITATIONS,
             emergency_notice=STATIC_EMERGENCY_NOTICE,
             disclaimer=STATIC_DISCLAIMER,
-            timestamp=timestamp
+            timestamp=timestamp,
+            detection_method="simulation",
+            model_name="High-Fidelity Clinical Simulation Engine"
         )
 
     async def _call_gemini(
@@ -353,7 +585,11 @@ class VisionModelService:
         """
         Invokes Google Gemini Vision with strict JSON structure.
         """
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent?key={self.gemini_key}"
+        gemini_key = self.gemini_key or settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
+        if not gemini_key:
+            raise ValueError("GEMINI_API_KEY is not configured")
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent?key={gemini_key}"
         
         parts: List[Dict[str, Any]] = [{"text": SYSTEM_PROMPT}]
         for view_name in ["front", "upper", "lower"]:
@@ -380,12 +616,29 @@ class VisionModelService:
             resp = await client.post(url, json=payload)
             if resp.status_code != 200:
                 logger.error(f"[{request_id}] Gemini API HTTP {resp.status_code}: {resp.text}")
-                raise RuntimeError(f"Gemini API returned HTTP {resp.status_code}")
+                raise RuntimeError(f"Gemini API returned HTTP {resp.status_code}: {resp.text}")
             
             data = resp.json()
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            parsed = json.loads(raw_text)
-            return self._normalize_model_json(parsed, request_id, quality_map)
+            candidates = data.get("candidates", [])
+            if not candidates:
+                raise RuntimeError(f"Gemini API returned no candidates: {data}")
+
+            content_parts = candidates[0].get("content", {}).get("parts", [])
+            raw_text = "".join(p.get("text", "") for p in content_parts if "text" in p)
+            clean_text = raw_text.strip()
+            if clean_text.startswith("```"):
+                clean_text = clean_text.strip("`").strip()
+                if clean_text.startswith("json"):
+                    clean_text = clean_text[4:].strip()
+
+            parsed = json.loads(clean_text)
+            return self._normalize_model_json(
+                parsed,
+                request_id,
+                quality_map,
+                detection_method="gemini",
+                model_name=f"Method 2: Google Gemini Vision API ({settings.GEMINI_MODEL})"
+            )
 
     async def _call_openai(
         self,
@@ -431,13 +684,21 @@ class VisionModelService:
             data = resp.json()
             raw_text = data["choices"][0]["message"]["content"]
             parsed = json.loads(raw_text)
-            return self._normalize_model_json(parsed, request_id, quality_map)
+            return self._normalize_model_json(
+                parsed,
+                request_id,
+                quality_map,
+                detection_method="openai",
+                model_name=f"OpenAI Vision API ({settings.OPENAI_MODEL})"
+            )
 
     def _normalize_model_json(
         self,
         parsed: Dict[str, Any],
         request_id: str,
-        quality_map: Dict[str, Dict[str, Any]]
+        quality_map: Dict[str, Dict[str, Any]],
+        detection_method: str = "gemini",
+        model_name: str = "Method 2: Google Gemini Vision API"
     ) -> ScreeningResponse:
         """
         Validates, normalizes, and sanitizes output from any LLM provider.
@@ -529,7 +790,9 @@ class VisionModelService:
             limitations=STATIC_LIMITATIONS,
             emergency_notice=STATIC_EMERGENCY_NOTICE,
             disclaimer=STATIC_DISCLAIMER,
-            timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            detection_method=detection_method,
+            model_name=model_name
         )
 
 

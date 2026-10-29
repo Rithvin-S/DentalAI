@@ -7,25 +7,31 @@ import {
   ShieldCheck, 
   Crosshair,
   Sparkles,
-  Info
+  Info,
+  Cpu
 } from 'lucide-react';
-import type { ScreeningResponse, ViewType } from '../types/screening';
+import type { ScreeningResponse, ViewType, DetectionMethod } from '../types/screening';
 import { AnnotatedImage } from '../components/AnnotatedImage';
 
 interface ResultsPageProps {
   response: ScreeningResponse;
   imageUrls: Record<ViewType, string>;
   onReset: () => void;
+  onReAnalyze?: (method: DetectionMethod) => void;
+  isAnalyzing?: boolean;
 }
 
 export const ResultsPage: React.FC<ResultsPageProps> = ({
   response,
   imageUrls,
-  onReset
+  onReset,
+  onReAnalyze,
+  isAnalyzing
 }) => {
   const [activeView, setActiveView] = useState<ViewType>('front');
   const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
 
+  const isGemini = response.detection_method === 'gemini' || (response.model_name && response.model_name.includes('Gemini'));
   const findingsForCurrentView = response.findings.filter((f) => f.view === activeView);
   const totalFindings = response.findings.length;
   const isClean = response.findings.length === 0 && response.status === 'completed';
@@ -48,10 +54,21 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
       <div className="glass-panel" style={{ padding: '1.5rem 1.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.35rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
               <span className="badge badge-cyan">
                 Visual Screening Summary
               </span>
+              {isGemini ? (
+                <span className="badge badge-blue" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Sparkles size={12} color="#818CF8" />
+                  <span>Approach A: Google Gemini AI Vision (API)</span>
+                </span>
+              ) : (
+                <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Cpu size={12} color="var(--emerald-primary)" />
+                  <span>Approach B: Open-Source AI Model (YOLOv8)</span>
+                </span>
+              )}
               <span className="mono-text" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                 ID: {response.request_id}
               </span>
@@ -62,12 +79,33 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
             </h1>
             
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Completed at {new Date(response.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • 3 Intraoral Views Analyzed
+              Completed at {new Date(response.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • 3 Intraoral Views Analyzed • AI Engine: <strong style={{ color: 'var(--text-primary)' }}>{response.model_name || (isGemini ? 'Approach A: Gemini 2.5 Flash' : 'Approach B: Open-Source YOLOv8')}</strong>
             </p>
           </div>
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {onReAnalyze && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={isAnalyzing}
+                onClick={() => onReAnalyze(isGemini ? 'yolo' : 'gemini')}
+                style={{
+                  fontSize: '0.825rem',
+                  border: `1px solid ${isGemini ? 'rgba(0, 245, 212, 0.4)' : 'rgba(99, 102, 241, 0.4)'}`,
+                  background: isGemini ? 'rgba(0, 245, 212, 0.08)' : 'rgba(99, 102, 241, 0.1)'
+                }}
+                id="compare-method-btn"
+                title="Run detection on the same photos using the alternative AI method"
+              >
+                {isGemini ? <Cpu size={16} color="var(--cyan-primary)" /> : <Sparkles size={16} color="#818CF8" />}
+                <span>
+                  {isAnalyzing ? 'Analyzing...' : isGemini ? 'Compare with Approach B (Open-Source YOLO)' : 'Compare with Approach A (Gemini API)'}
+                </span>
+              </button>
+            )}
+
             <button
               type="button"
               className="btn btn-secondary"

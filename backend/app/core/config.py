@@ -21,16 +21,18 @@ class Settings(BaseSettings):
     ALLOWED_EXTENSIONS: Set[str] = {".jpg", ".jpeg", ".png", ".webp"}
     ALLOWED_MIME_TYPES: Set[str] = {"image/jpeg", "image/png", "image/webp"}
     
-    # AI Vision Model Settings (per SRS FR-10, FR-16)
-    AI_PROVIDER: str = "auto"  # "auto", "gemini", "openai", "mock"
+    # AI Vision Model Settings (per SRS FR-10, FR-16, and DentalAI Model Workflow)
+    AI_PROVIDER: str = "auto"  # "auto", "yolo", "gemini", "openai", "mock"
+    YOLO_MODEL_PATH: str = "DentalAI-Model/runs/dental/baseline/weights/best.pt"
+    YOLO_CONF_THRESHOLD: float = 0.25
     GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     OPENAI_API_KEY: str | None = None
     OPENAI_MODEL: str = "gpt-4o"
     REQUEST_TIMEOUT_SECONDS: int = 45
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "backend/.env", "../.env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )

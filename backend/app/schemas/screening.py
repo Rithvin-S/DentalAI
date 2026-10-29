@@ -51,6 +51,8 @@ class ScreeningResponse(BaseModel):
     emergency_notice: str
     disclaimer: str
     timestamp: str
+    detection_method: Optional[str] = Field("yolo", description="Detection method used: 'yolo' (Method 1: Local YOLO Model) or 'gemini' (Method 2: Gemini API)")
+    model_name: Optional[str] = Field(None, description="Name or identifier of the AI model that performed detection")
 
 
 class ErrorDetail(BaseModel):

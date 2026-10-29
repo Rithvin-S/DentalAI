@@ -2,6 +2,18 @@ export type ViewType = 'front' | 'upper' | 'lower';
 
 export type ScreeningStatusType = 'completed' | 'unable_to_assess' | 'failed';
 
+export type DetectionMethod = 'yolo' | 'gemini';
+
+export interface DetectionMethodInfo {
+  id: DetectionMethod;
+  name: string;
+  badge: string;
+  model_tag: string;
+  description: string;
+  available: boolean;
+  is_default?: boolean;
+}
+
 export interface BoundingBox {
   ymin: number; // 0.0 to 1.0 normalized
   xmin: number; // 0.0 to 1.0 normalized
@@ -37,6 +49,8 @@ export interface ScreeningResponse {
   emergency_notice: string;
   disclaimer: string;
   timestamp: string;
+  detection_method?: string;
+  model_name?: string;
 }
 
 export interface ViewUploadState {

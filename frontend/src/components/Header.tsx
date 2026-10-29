@@ -58,14 +58,14 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Navigation & Status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {/* Backend Health Badge */}
+          {/* Backend Health & AI Engines Badge */}
           <div 
             className={`badge ${backendOnline ? 'badge-emerald' : 'badge-amber'}`}
-            title={backendOnline ? 'FastAPI Backend Connected' : 'Connecting to Backend Service...'}
+            title={backendOnline ? 'FastAPI Backend, Approach A (Gemini API) & Approach B (Open-Source YOLO) Connected' : 'FastAPI Backend Offline - Running in Client Demo Simulation Mode'}
             style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}
           >
             <span className="pulse-dot" style={{ color: backendOnline ? 'var(--emerald-primary)' : 'var(--amber-primary)' }} />
-            <span>{backendOnline ? 'FastAPI Active' : 'Connecting...'}</span>
+            <span>{backendOnline ? 'Approach A & B Ready' : 'Demo Mode'}</span>
           </div>
 
           {/* Capture Guide Button */}

@@ -5,7 +5,7 @@ import { CaptureGuideModal } from './components/CaptureGuideModal';
 import { ConsentModal } from './components/ConsentModal';
 import { UploadPage } from './pages/UploadPage';
 import { ResultsPage } from './pages/ResultsPage';
-import type { ViewType, ViewUploadState, ScreeningResponse } from './types/screening';
+import type { ViewType, ViewUploadState, ScreeningResponse, DetectionMethod } from './types/screening';
 import { submitScreeningAnalysis, checkBackendHealth } from './services/api';
 
 const initialUploadStates: Record<ViewType, ViewUploadState> = {
@@ -19,6 +19,7 @@ export const App: React.FC = () => {
   const [backendOnline, setBackendOnline] = useState(false);
   const [uploadStates, setUploadStates] = useState<Record<ViewType, ViewUploadState>>(initialUploadStates);
   const [consentAcknowledged, setConsentAcknowledged] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<DetectionMethod>('yolo');
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isConsentOpen, setIsConsentOpen] = useState(false);
   
@@ -121,7 +122,7 @@ export const App: React.FC = () => {
   }, [uploadStates]);
 
   // Submit screening analysis
-  const handleSubmit = async (scenario?: string) => {
+  const handleSubmit = async (scenario?: string, methodOverride?: DetectionMethod) => {
     const { front, upper, lower } = uploadStates;
     if (!front.file || !upper.file || !lower.file) {
       alert('Please provide photos for all three intraoral views.');
@@ -132,17 +133,34 @@ export const App: React.FC = () => {
       return;
     }
 
-    setIsAnalyzing(true);
-    setAnalysisPhase('Validating photographic views and orientation...');
+    const activeMethod = methodOverride || selectedMethod;
+    if (methodOverride && methodOverride !== selectedMethod) {
+      setSelectedMethod(methodOverride);
+    }
 
-    // UX progress phases
+    setIsAnalyzing(true);
+    setAnalysisPhase(
+      activeMethod === 'gemini' 
+        ? 'Connecting to Google Gemini Multimodal Vision API...' 
+        : 'Validating photographic views and orientation...'
+    );
+
+    // UX progress phases tailored to detection engine
     const timer1 = setTimeout(() => {
-      setAnalysisPhase('Executing dental visual inspection model...');
+      setAnalysisPhase(
+        activeMethod === 'gemini'
+          ? 'Executing Gemini 2.5 Flash dental visual reasoning...'
+          : 'Executing fine-tuned YOLOv8 dental model inference...'
+      );
     }, 700);
 
     const timer2 = setTimeout(() => {
-      setAnalysisPhase('Normalizing localization coordinates and compiling report...');
-    }, 1500);
+      setAnalysisPhase(
+        activeMethod === 'gemini'
+          ? 'Validating spatial localization and structured JSON findings...'
+          : 'Normalizing localization coordinates and compiling report...'
+      );
+    }, 1600);
 
     try {
       const response = await submitScreeningAnalysis(
@@ -150,6 +168,7 @@ export const App: React.FC = () => {
         upper.file,
         lower.file,
         consentAcknowledged,
+        activeMethod,
         scenario
       );
       setScreeningResult(response);
@@ -204,6 +223,8 @@ export const App: React.FC = () => {
             onOpenConsentModal={() => setIsConsentOpen(true)}
             onToggleConsent={setConsentAcknowledged}
             onSubmit={handleSubmit}
+            selectedMethod={selectedMethod}
+            onSelectMethod={setSelectedMethod}
             isAnalyzing={isAnalyzing}
             analysisPhase={analysisPhase}
           />
@@ -212,6 +233,8 @@ export const App: React.FC = () => {
             response={screeningResult}
             imageUrls={imageUrls}
             onReset={handleReset}
+            onReAnalyze={(method) => handleSubmit(undefined, method)}
+            isAnalyzing={isAnalyzing}
           />
         )}
       </main>

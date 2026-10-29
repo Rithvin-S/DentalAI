@@ -91,11 +91,12 @@ async def analyze_screenings(
     upper_image: UploadFile = File(..., description="Upper view intraoral photograph (teeth and palate)"),
     lower_image: UploadFile = File(..., description="Lower view intraoral photograph (teeth and floor of mouth)"),
     consent_acknowledged: bool = Form(..., description="Must be true indicating explicit user acknowledgement"),
+    detection_method: Optional[str] = Form("yolo", description="Detection method: 'yolo' (Method 1: Local Model) or 'gemini' (Method 2: Gemini API)"),
     scenario: Optional[str] = Query(None, description="Optional simulation scenario: 'default', 'clean', or 'unassessable'")
 ):
     request_id = str(uuid.uuid4())
     start_time = time.time()
-    logger.info(f"[{request_id}] Received screening analysis request")
+    logger.info(f"[{request_id}] Received screening analysis request (method: {detection_method})")
 
     # 1. Enforce Informed Consent (FR-08, AT-06)
     if not consent_acknowledged:
@@ -124,15 +125,16 @@ async def analyze_screenings(
     validated_images["upper"] = validate_single_image(upper_image, upper_bytes, "Upper View (upper_image)", request_id)
     validated_images["lower"] = validate_single_image(lower_image, lower_bytes, "Lower View (lower_image)", request_id)
 
-    # 4. Invoke vision model service
+    # 4. Invoke vision model service with requested detection method
     try:
         response = await vision_service.analyze_photos(
             images=validated_images,
             request_id=request_id,
-            test_scenario=scenario
+            test_scenario=scenario,
+            detection_method=detection_method
         )
         duration = round(time.time() - start_time, 2)
-        logger.info(f"[{request_id}] Screening analysis completed successfully in {duration}s. Status={response.status}")
+        logger.info(f"[{request_id}] Screening analysis completed successfully in {duration}s using {response.model_name}. Status={response.status}")
         return response
     except Exception as err:
         logger.error(f"[{request_id}] Unexpected processing failure: {type(err).__name__} - {str(err)}")
@@ -146,7 +148,7 @@ async def analyze_screenings(
 @router.get("/config-info")
 async def get_config_info():
     """
-    Returns non-sensitive public configuration for client initialization.
+    Returns non-sensitive public configuration for client initialization, including available AI detection methods.
     """
     active_provider = vision_service._resolve_provider()
     return {
@@ -156,5 +158,9 @@ async def get_config_info():
         "allowed_extensions": list(settings.ALLOWED_EXTENSIONS),
         "allowed_mime_types": list(settings.ALLOWED_MIME_TYPES),
         "ai_provider": active_provider,
-        "version": "1.0.0"
+        "available_methods": vision_service.get_available_methods(),
+        "has_yolo": vision_service.yolo_model is not None,
+        "has_gemini": bool(vision_service.gemini_key or settings.GEMINI_API_KEY),
+        "gemini_model": settings.GEMINI_MODEL,
+        "version": "1.1.0"
     }

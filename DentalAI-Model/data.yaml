@@ -1,0 +1,11 @@
+path: e:/Dental AI Website/DentalAI-Model/dataset
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: suspected_caries
+  1: gum_redness
+  2: tooth_discoloration
+  3: tooth_chip
+  4: oral_lesion

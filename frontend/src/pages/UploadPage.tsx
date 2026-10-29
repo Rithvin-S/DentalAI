@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import type { ViewType, ViewUploadState } from '../types/screening';
+import { Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Loader2, Cpu } from 'lucide-react';
+import type { ViewType, ViewUploadState, DetectionMethod } from '../types/screening';
 import { PhotoUploadCard } from '../components/PhotoUploadCard';
 
 interface UploadPageProps {
@@ -12,7 +12,9 @@ interface UploadPageProps {
   consentAcknowledged: boolean;
   onOpenConsentModal: () => void;
   onToggleConsent: (val: boolean) => void;
-  onSubmit: (scenario?: string) => void;
+  onSubmit: (scenario?: string, method?: DetectionMethod) => void;
+  selectedMethod: DetectionMethod;
+  onSelectMethod: (method: DetectionMethod) => void;
   isAnalyzing: boolean;
   analysisPhase: string;
 }
@@ -27,6 +29,8 @@ export const UploadPage: React.FC<UploadPageProps> = ({
   onOpenConsentModal,
   onToggleConsent,
   onSubmit,
+  selectedMethod,
+  onSelectMethod,
   isAnalyzing,
   analysisPhase
 }) => {
@@ -131,7 +135,144 @@ export const UploadPage: React.FC<UploadPageProps> = ({
 
       {/* Submission & Consent Section */}
       <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '1.75rem' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* AI Detection Method Selection (SRS & Multi-Method Architecture) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Select AI Detection Method:
+                </span>
+                <span className="badge badge-cyan" style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem' }}>
+                  2 AI Engines Available
+                </span>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Compare results anytime directly on the screening report
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+              {/* Method 1: Local YOLO AI Model */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelectMethod('yolo')}
+                style={{
+                  padding: '1.1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: selectedMethod === 'yolo' ? 'rgba(0, 245, 212, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                  border: `2px solid ${selectedMethod === 'yolo' ? 'var(--cyan-primary)' : 'var(--border-subtle)'}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.6rem',
+                  boxShadow: selectedMethod === 'yolo' ? '0 0 16px rgba(0, 245, 212, 0.2)' : 'none'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      background: 'rgba(0, 245, 212, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--cyan-primary)'
+                    }}>
+                      <Cpu size={19} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.925rem', color: 'var(--text-primary)' }}>
+                        Approach B: Open-Source AI Model (YOLOv8)
+                      </div>
+                      <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
+                        Ultralytics YOLOv8 • Open-Source Weights
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`badge ${selectedMethod === 'yolo' ? 'badge-cyan' : 'badge-neutral'}`} style={{ fontSize: '0.7rem' }}>
+                    {selectedMethod === 'yolo' ? 'Selected' : 'Select'}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0', lineHeight: 1.4 }}>
+                  Open-source YOLO caries & lesion detector trained on intraoral clinical datasets. Detects suspected caries, enamel discoloration, chips, and marginal erythema.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--emerald-primary)', background: 'rgba(16, 185, 129, 0.12)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                    ⚡ Open-Source & Fast
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--cyan-primary)', background: 'rgba(0, 245, 212, 0.1)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                    🔒 Edge / Microservice
+                  </span>
+                </div>
+              </div>
+
+              {/* Method 2: Google Gemini AI Vision (API) */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelectMethod('gemini')}
+                style={{
+                  padding: '1.1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: selectedMethod === 'gemini' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                  border: `2px solid ${selectedMethod === 'gemini' ? '#818CF8' : 'var(--border-subtle)'}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.6rem',
+                  boxShadow: selectedMethod === 'gemini' ? '0 0 16px rgba(99, 102, 241, 0.25)' : 'none'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      background: 'rgba(99, 102, 241, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#818CF8'
+                    }}>
+                      <Sparkles size={19} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.925rem', color: 'var(--text-primary)' }}>
+                        Approach A: Google Gemini AI Vision (API)
+                      </div>
+                      <div style={{ fontSize: '0.725rem', color: '#A5B4FC' }}>
+                        Gemini 2.5 Flash • Multimodal Cloud API
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`badge ${selectedMethod === 'gemini' ? 'badge-blue' : 'badge-neutral'}`} style={{ fontSize: '0.7rem' }}>
+                    {selectedMethod === 'gemini' ? 'Selected' : 'Select'}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0', lineHeight: 1.4 }}>
+                  Deep multimodal reasoning powered by Google Gemini Vision API. Performs holistic oral tissue pattern detection with spatial localization.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#38BDF8', background: 'rgba(56, 189, 248, 0.12)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                    ✨ Multimodal Reasoning
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: '#C084FC', background: 'rgba(192, 132, 252, 0.12)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                    🌐 Live Gemini API
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
           
           {/* Consent Checkbox Row (FR-08) */}
           <div style={{
@@ -196,7 +337,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({
                 id="scenario-select"
                 aria-label="Demo simulation scenario"
               >
-                <option value="default">Standard Screening (Visible Findings Demo)</option>
+                <option value="default">Standard Screening (Live AI Inference)</option>
                 <option value="clean">Clean View Demo (No Obvious Abnormalities - FR-14)</option>
                 <option value="unassessable">Suboptimal Image Quality Demo (Retake State - FR-15)</option>
               </select>
@@ -222,8 +363,8 @@ export const UploadPage: React.FC<UploadPageProps> = ({
                 type="button"
                 className="btn btn-primary"
                 disabled={!canSubmit}
-                onClick={() => onSubmit(selectedScenario)}
-                style={{ minWidth: '220px', padding: '0.75rem 1.5rem', fontSize: '1rem' }}
+                onClick={() => onSubmit(selectedScenario, selectedMethod)}
+                style={{ minWidth: '240px', padding: '0.75rem 1.5rem', fontSize: '0.95rem' }}
                 id="submit-screening-btn"
               >
                 {isAnalyzing ? (
@@ -233,7 +374,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({
                   </>
                 ) : (
                   <>
-                    <span>Run Visual Screening</span>
+                    <span>Run Screening ({selectedMethod === 'yolo' ? 'Approach B: Open-Source YOLO' : 'Approach A: Gemini API'})</span>
                     <ArrowRight size={18} />
                   </>
                 )}

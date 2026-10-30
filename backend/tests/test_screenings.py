@@ -33,10 +33,11 @@ def test_config_info():
     assert data["project"] == "DentalAI"
     assert data["max_file_size_mb"] == 10
     assert "available_methods" in data
-    assert len(data["available_methods"]) >= 2
+    assert len(data["available_methods"]) >= 3
     method_ids = [m["id"] for m in data["available_methods"]]
     assert "yolo" in method_ids
     assert "gemini" in method_ids
+    assert "multi_model" in method_ids
     assert data["has_gemini"] is True
 
 
@@ -216,4 +217,78 @@ def test_gemini_api_detection_with_samples():
     assert "Gemini" in res.get("model_name", "")
     assert "findings" in res
     assert "view_assessments" in res
+
+
+def test_multi_model_pipeline_with_samples():
+    """Verify Method 3: End-to-end inference with 4-stage Multi-Model Pipeline (OpenCV, YOLO, U-Net, ResNet)"""
+    import os
+    sample_dir = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "public", "samples")
+    front_path = os.path.join(sample_dir, "front_sample.jpg")
+    upper_path = os.path.join(sample_dir, "upper_sample.jpg")
+    lower_path = os.path.join(sample_dir, "lower_sample.jpg")
+
+    if not (os.path.exists(front_path) and os.path.exists(upper_path) and os.path.exists(lower_path)):
+        pytest.skip("Sample images not found")
+
+    with open(front_path, "rb") as f_front, open(upper_path, "rb") as f_upper, open(lower_path, "rb") as f_lower:
+        files = {
+            "front_image": ("front.jpg", f_front.read(), "image/jpeg"),
+            "upper_image": ("upper.jpg", f_upper.read(), "image/jpeg"),
+            "lower_image": ("lower.jpg", f_lower.read(), "image/jpeg")
+        }
+
+    data = {
+        "consent_acknowledged": "true",
+        "detection_method": "multi_model"
+    }
+    response = client.post("/api/screenings/analyze", files=files, data=data)
+    assert response.status_code == 200
+    res = response.json()
+    assert res["status"] == "completed"
+    assert res["detection_method"] == "multi_model"
+    assert "Multi-Model" in res.get("model_name", "")
+    assert "findings" in res
+    assert len(res["findings"]) > 0
+
+    # Verify that multi-model findings contain all four technologies
+    for finding in res["findings"]:
+        # 1. YOLOv8 localization
+        assert finding["localization"] is not None
+        # 2. U-Net segmentation
+        assert finding.get("segmentation") is not None
+        assert "mask_polygons" in finding["segmentation"]
+        assert "dice_score" in finding["segmentation"]
+        # 3. ResNet classification
+        assert finding.get("classification") is not None
+        assert "category" in finding["classification"]
+        assert "confidence" in finding["classification"]
+        assert "uncertainty" in finding["classification"]
+
+
+def test_dedicated_pipeline_endpoint():
+    """Verify dedicated POST /api/screenings/pipeline/analyze endpoint"""
+    import os
+    sample_dir = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "public", "samples")
+    front_path = os.path.join(sample_dir, "front_sample.jpg")
+    upper_path = os.path.join(sample_dir, "upper_sample.jpg")
+    lower_path = os.path.join(sample_dir, "lower_sample.jpg")
+
+    if not (os.path.exists(front_path) and os.path.exists(upper_path) and os.path.exists(lower_path)):
+        pytest.skip("Sample images not found")
+
+    with open(front_path, "rb") as f_front, open(upper_path, "rb") as f_upper, open(lower_path, "rb") as f_lower:
+        files = {
+            "front_image": ("front.jpg", f_front.read(), "image/jpeg"),
+            "upper_image": ("upper.jpg", f_upper.read(), "image/jpeg"),
+            "lower_image": ("lower.jpg", f_lower.read(), "image/jpeg")
+        }
+
+    data = {"consent_acknowledged": "true"}
+    response = client.post("/api/screenings/pipeline/analyze", files=files, data=data)
+    assert response.status_code == 200
+    res = response.json()
+    assert res["status"] == "completed"
+    assert res["detection_method"] == "multi_model"
+    assert len(res["findings"]) > 0
+
 

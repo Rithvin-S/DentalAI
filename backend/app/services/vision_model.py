@@ -113,7 +113,7 @@ class VisionModelService:
                 "model_tag": "YOLOv8 Dental",
                 "description": "On-device fine-tuned neural network for immediate tooth and gingival lesion detection without external network calls.",
                 "available": has_yolo,
-                "is_default": True
+                "is_default": False
             },
             {
                 "id": "gemini",
@@ -123,6 +123,15 @@ class VisionModelService:
                 "description": f"Cloud multimodal AI reasoning through Google Gemini Vision API ({settings.GEMINI_MODEL}) for holistic visual analysis.",
                 "available": has_gemini,
                 "is_default": False
+            },
+            {
+                "id": "multi_model",
+                "name": "Method 3: Multi-Model AI Ensemble Pipeline",
+                "badge": "4-Stage Ensemble",
+                "model_tag": "OpenCV • YOLOv8 • U-Net • ResNet",
+                "description": "Coordinated 4-stage pipeline combining OpenCV contrast/noise processing, YOLOv8 localization, U-Net pixel-level segmentation masks, and ResNet visual categorization.",
+                "available": True,
+                "is_default": True
             }
         ]
 
@@ -166,6 +175,9 @@ class VisionModelService:
         try:
             if test_scenario or active_provider == "mock":
                 return self._simulate_screening(images, request_id, quality_issues, test_scenario)
+            elif active_provider == "multi_model":
+                from app.pipeline.dental_pipeline import dental_pipeline
+                return dental_pipeline.run_multi_view_pipeline(images, request_id)
             elif active_provider == "gemini":
                 return await self._call_gemini(images, request_id, quality_issues)
             elif active_provider == "yolo" and self.yolo_model is not None:
@@ -182,9 +194,11 @@ class VisionModelService:
 
     def _resolve_provider(self, requested_method: Optional[str] = None) -> str:
         gemini_key = self.gemini_key or settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
-        if requested_method and requested_method.lower() in ["yolo", "gemini", "openai", "mock"]:
+        if requested_method and requested_method.lower() in ["multi_model", "pipeline", "ensemble", "yolo", "gemini", "openai", "mock"]:
             method = requested_method.lower()
-            if method == "gemini" and gemini_key:
+            if method in ["multi_model", "pipeline", "ensemble"]:
+                return "multi_model"
+            elif method == "gemini" and gemini_key:
                 return "gemini"
             elif method == "yolo" and self.yolo_model is not None:
                 return "yolo"
@@ -202,13 +216,8 @@ class VisionModelService:
 
         if self.provider != "auto":
             return self.provider
-        if self.yolo_model is not None:
-            return "yolo"
-        if gemini_key:
-            return "gemini"
-        if self.openai_key:
-            return "openai"
-        return "mock"
+        # Default priority: multi_model if modules ready, else yolo, else gemini
+        return "multi_model" if self.yolo_model is not None else ("gemini" if gemini_key else "mock")
 
     def _call_yolo(
         self,

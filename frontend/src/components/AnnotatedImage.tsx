@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Eye, EyeOff, ZoomIn, ZoomOut, RotateCcw, Layers, Box } from 'lucide-react';
 import type { Finding, ViewType } from '../types/screening';
 
 interface AnnotatedImageProps {
@@ -18,8 +18,9 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
   onSelectFinding
 }) => {
   const [showAnnotations, setShowAnnotations] = useState(true);
+  const [showBoxes, setShowBoxes] = useState(true);
+  const [showMasks, setShowMasks] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number } | null>(null);
   const [renderedDimensions, setRenderedDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -29,9 +30,11 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
     (f) => f.view === viewName && f.localization !== null && f.localization !== undefined
   );
 
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    setNaturalDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+  const hasMasks = localizedFindings.some(
+    (f) => f.segmentation && f.segmentation.mask_polygons && f.segmentation.mask_polygons.length > 0
+  );
+
+  const handleImageLoad = () => {
     updateRenderedSize();
   };
 
@@ -58,11 +61,20 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
     setZoomLevel(1);
   };
 
+  const getColorForFinding = (finding: Finding) => {
+    const cat = (finding.classification?.category || finding.label).toLowerCase();
+    if (cat.includes('gum') || cat.includes('gingival')) return '#F43F5E'; // rose/red
+    if (cat.includes('discoloration')) return '#F59E0B'; // amber
+    if (cat.includes('chip')) return '#38BDF8'; // sky blue
+    if (cat.includes('lesion')) return '#A855F7'; // purple
+    return '#00F5D4'; // cyan
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
       {/* Controls Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn btn-secondary"
@@ -71,9 +83,34 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
             id="toggle-annotations-btn"
           >
             {showAnnotations ? <EyeOff size={15} /> : <Eye size={15} />}
-            <span>{showAnnotations ? 'Hide Markers' : 'Show Markers'}</span>
+            <span>{showAnnotations ? 'Hide All' : 'Show All'}</span>
           </button>
-          
+
+          {hasMasks && (
+            <>
+              <button
+                type="button"
+                className={`btn ${showMasks ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setShowMasks(!showMasks)}
+                style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                title="Toggle U-Net Pixel-Level Segmentation Masks"
+              >
+                <Layers size={14} />
+                <span>U-Net Masks</span>
+              </button>
+              <button
+                type="button"
+                className={`btn ${showBoxes ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setShowBoxes(!showBoxes)}
+                style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                title="Toggle YOLO Bounding Boxes"
+              >
+                <Box size={14} />
+                <span>YOLO Boxes</span>
+              </button>
+            </>
+          )}
+
           <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
             {localizedFindings.length} Marked {localizedFindings.length === 1 ? 'Region' : 'Regions'}
           </span>
@@ -144,7 +181,7 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
             onLoad={handleImageLoad}
           />
 
-          {/* SVG Overlay for Coordinates */}
+          {/* SVG Overlay for Coordinates, Boxes, and Segmentation Masks */}
           {showAnnotations && renderedDimensions.width > 0 && renderedDimensions.height > 0 && (
             <svg
               className="annotation-svg-overlay"
@@ -160,18 +197,46 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
                 </filter>
               </defs>
 
-              {localizedFindings.map((finding) => {
+              {/* 1. U-Net Segmentation Mask Polygons */}
+              {showMasks && localizedFindings.map((finding) => {
+                if (!finding.segmentation?.mask_polygons || finding.segmentation.mask_polygons.length === 0) return null;
+                const isActive = activeFindingId === finding.id;
+                const color = getColorForFinding(finding);
+
+                return finding.segmentation.mask_polygons.map((poly, pIdx) => {
+                  const pointsStr = poly
+                    .map(([px, py]) => `${px * renderedDimensions.width},${py * renderedDimensions.height}`)
+                    .join(' ');
+
+                  return (
+                    <polygon
+                      key={`poly-${finding.id}-${pIdx}`}
+                      points={pointsStr}
+                      fill={color}
+                      fillOpacity={isActive ? 0.45 : 0.26}
+                      stroke={color}
+                      strokeWidth={isActive ? 2.5 : 1.5}
+                      strokeDasharray={isActive ? 'none' : '4 2'}
+                      style={{ transition: 'all 0.2s ease', cursor: 'pointer' }}
+                      onClick={() => onSelectFinding(isActive ? null : finding.id)}
+                    >
+                      <title>{finding.title} — U-Net Segmentation Mask (Dice: {finding.segmentation?.dice_score ?? 'N/A'})</title>
+                    </polygon>
+                  );
+                });
+              })}
+
+              {/* 2. YOLOv8 Localization Bounding Boxes */}
+              {showBoxes && localizedFindings.map((finding) => {
                 const loc = finding.localization!;
-                // Map normalized coordinates (0.0 to 1.0) to current rendered pixels
                 const x = loc.xmin * renderedDimensions.width;
                 const y = loc.ymin * renderedDimensions.height;
                 const width = (loc.xmax - loc.xmin) * renderedDimensions.width;
                 const height = (loc.ymax - loc.ymin) * renderedDimensions.height;
 
                 const isActive = activeFindingId === finding.id;
-                const isReview = finding.severity === 'review_recommended';
+                const color = getColorForFinding(finding);
                 const bracketLen = Math.min(10, Math.max(5, Math.min(width, height) * 0.25));
-                const strokeColor = isReview ? '#F59E0B' : '#00F5D4';
 
                 return (
                   <g 
@@ -186,40 +251,41 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
                       width={width}
                       height={height}
                       rx={4}
-                      className={`annotation-box ${isReview ? 'review' : ''} ${isActive ? 'active' : ''}`}
+                      className={`annotation-box ${isActive ? 'active' : ''}`}
+                      stroke={color}
+                      strokeWidth={isActive ? 2.5 : 1.5}
+                      strokeOpacity={isActive ? 0.95 : 0.75}
+                      fill={color}
+                      fillOpacity={isActive ? 0.15 : 0.05}
                     >
                       <title>{finding.title} ({finding.label})</title>
                     </rect>
 
-                    {/* Surgical Precision Corner Brackets */}
-                    {/* Top-Left */}
+                    {/* Corner Brackets */}
                     <path
                       d={`M ${x} ${y + bracketLen} L ${x} ${y} L ${x + bracketLen} ${y}`}
-                      stroke={strokeColor}
+                      stroke={color}
                       strokeWidth={isActive ? 3 : 2}
                       fill="none"
                       strokeLinecap="round"
                     />
-                    {/* Top-Right */}
                     <path
                       d={`M ${x + width - bracketLen} ${y} L ${x + width} ${y} L ${x + width} ${y + bracketLen}`}
-                      stroke={strokeColor}
+                      stroke={color}
                       strokeWidth={isActive ? 3 : 2}
                       fill="none"
                       strokeLinecap="round"
                     />
-                    {/* Bottom-Left */}
                     <path
                       d={`M ${x} ${y + height - bracketLen} L ${x} ${y + height} L ${x + bracketLen} ${y + height}`}
-                      stroke={strokeColor}
+                      stroke={color}
                       strokeWidth={isActive ? 3 : 2}
                       fill="none"
                       strokeLinecap="round"
                     />
-                    {/* Bottom-Right */}
                     <path
                       d={`M ${x + width - bracketLen} ${y + height} L ${x + width} ${y + height} L ${x + width} ${y + height - bracketLen}`}
-                      stroke={strokeColor}
+                      stroke={color}
                       strokeWidth={isActive ? 3 : 2}
                       fill="none"
                       strokeLinecap="round"
@@ -230,8 +296,8 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
                       cx={x + width / 2} 
                       cy={y + height / 2} 
                       r={isActive ? 2.5 : 1.5} 
-                      fill={strokeColor} 
-                      opacity={0.8}
+                      fill={color} 
+                      opacity={0.85}
                     />
                   </g>
                 );
@@ -245,37 +311,58 @@ export const AnnotatedImage: React.FC<AnnotatedImageProps> = ({
             const loc = finding.localization!;
             const topPx = loc.ymin * renderedDimensions.height;
             const leftPx = loc.xmin * renderedDimensions.width;
-            const isReview = finding.severity === 'review_recommended';
+            const color = getColorForFinding(finding);
 
             return (
               <div
                 key={`label-${finding.id}`}
-                className={`annotation-label-pill ${isReview ? 'review' : ''}`}
+                className="annotation-pill-label"
                 style={{
-                  top: `${Math.max(4, topPx - 28)}px`,
-                  left: `${leftPx}px`
+                  position: 'absolute',
+                  top: `${Math.max(6, topPx - 28)}px`,
+                  left: `${leftPx}px`,
+                  zIndex: 20,
+                  pointerEvents: 'none',
+                  borderColor: color,
+                  boxShadow: `0 2px 10px rgba(0,0,0,0.5)`
                 }}
               >
-                <span>🎯</span>
-                <span>{finding.title}</span>
+                <span style={{ color }}>{finding.title}</span>
+                {finding.confidence && (
+                  <span className="mono-text" style={{ opacity: 0.85, fontSize: '0.65rem' }}>
+                    {Math.round(finding.confidence * 100)}%
+                  </span>
+                )}
+                {finding.segmentation?.dice_score && (
+                  <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', padding: '0 4px', borderRadius: '3px' }}>
+                    Dice {Math.round(finding.segmentation.dice_score * 100)}%
+                  </span>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Note about coordinates */}
-      <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>
-          {localizedFindings.length > 0 
-            ? 'Bounding markers represent model-estimated visual areas of interest, not definitive borders.'
-            : 'No localization coordinates returned for this view. Model observations are presented in the findings summary.'}
+      {/* Mask and Annotation Legend */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--text-muted)', paddingTop: '0.25rem' }}>
+        <span style={{ fontWeight: 600 }}>Multi-Model Map:</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#00F5D4', display: 'inline-block' }} />
+          Enamel / Caries
         </span>
-        {naturalDimensions && (
-          <span className="mono-text">
-            Original: {naturalDimensions.width}×{naturalDimensions.height}px
-          </span>
-        )}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#F43F5E', display: 'inline-block' }} />
+          Marginal Gingiva / Redness
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#F59E0B', display: 'inline-block' }} />
+          Enamel Discoloration
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#38BDF8', display: 'inline-block' }} />
+          Tooth Structure Chip
+        </span>
       </div>
     </div>
   );

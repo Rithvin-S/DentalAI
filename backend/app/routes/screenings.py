@@ -91,7 +91,7 @@ async def analyze_screenings(
     upper_image: UploadFile = File(..., description="Upper view intraoral photograph (teeth and palate)"),
     lower_image: UploadFile = File(..., description="Lower view intraoral photograph (teeth and floor of mouth)"),
     consent_acknowledged: bool = Form(..., description="Must be true indicating explicit user acknowledgement"),
-    detection_method: Optional[str] = Form("yolo", description="Detection method: 'yolo' (Method 1: Local Model) or 'gemini' (Method 2: Gemini API)"),
+    detection_method: Optional[str] = Form("multi_model", description="Detection method: 'multi_model' (Method 3: Multi-Model Pipeline), 'yolo' (Method 1: Local YOLO), or 'gemini' (Method 2: Gemini API)"),
     scenario: Optional[str] = Query(None, description="Optional simulation scenario: 'default', 'clean', or 'unassessable'")
 ):
     request_id = str(uuid.uuid4())
@@ -126,11 +126,12 @@ async def analyze_screenings(
     validated_images["lower"] = validate_single_image(lower_image, lower_bytes, "Lower View (lower_image)", request_id)
 
     # 4. Invoke vision model service with requested detection method
+    scenario_str = scenario if isinstance(scenario, str) and scenario else None
     try:
         response = await vision_service.analyze_photos(
             images=validated_images,
             request_id=request_id,
-            test_scenario=scenario,
+            test_scenario=scenario_str,
             detection_method=detection_method
         )
         duration = round(time.time() - start_time, 2)
@@ -143,6 +144,26 @@ async def analyze_screenings(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing the visual screening. Please try again later."
         )
+
+
+@router.post(
+    "/pipeline/analyze",
+    response_model=ScreeningResponse,
+    summary="Dedicated endpoint for 4-Stage Multi-Model AI Ensemble Pipeline (OpenCV • YOLOv8 • U-Net • ResNet)"
+)
+async def analyze_multi_model_pipeline(
+    front_image: UploadFile = File(..., description="Front view intraoral photograph"),
+    upper_image: UploadFile = File(..., description="Upper view intraoral photograph"),
+    lower_image: UploadFile = File(..., description="Lower view intraoral photograph"),
+    consent_acknowledged: bool = Form(..., description="Must be true indicating explicit user acknowledgement")
+):
+    return await analyze_screenings(
+        front_image=front_image,
+        upper_image=upper_image,
+        lower_image=lower_image,
+        consent_acknowledged=consent_acknowledged,
+        detection_method="multi_model"
+    )
 
 
 @router.get("/config-info")

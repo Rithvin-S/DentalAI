@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Loader2, Cpu } from 'lucide-react';
+import { Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Loader2, Cpu, Layers } from 'lucide-react';
 import type { ViewType, ViewUploadState, DetectionMethod } from '../types/screening';
 import { PhotoUploadCard } from '../components/PhotoUploadCard';
 
@@ -145,32 +145,32 @@ export const UploadPage: React.FC<UploadPageProps> = ({
                   Select AI Detection Method:
                 </span>
                 <span className="badge badge-cyan" style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem' }}>
-                  2 AI Engines Available
+                  3 AI Methods Available
                 </span>
               </div>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Compare results anytime directly on the screening report
+                Compare results across all methods anytime directly on the screening report
               </span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-              {/* Method 1: Local YOLO AI Model */}
+              {/* Method 3: Multi-Model AI Ensemble Pipeline (OpenCV + YOLOv8 + U-Net + ResNet) */}
               <div
                 role="button"
                 tabIndex={0}
-                onClick={() => onSelectMethod('yolo')}
+                onClick={() => onSelectMethod('multi_model')}
                 style={{
                   padding: '1.1rem',
                   borderRadius: 'var(--radius-md)',
-                  background: selectedMethod === 'yolo' ? 'rgba(0, 245, 212, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                  border: `2px solid ${selectedMethod === 'yolo' ? 'var(--cyan-primary)' : 'var(--border-subtle)'}`,
+                  background: selectedMethod === 'multi_model' ? 'rgba(0, 245, 212, 0.09)' : 'rgba(255, 255, 255, 0.02)',
+                  border: `2px solid ${selectedMethod === 'multi_model' ? 'var(--cyan-primary)' : 'var(--border-subtle)'}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   position: 'relative',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.6rem',
-                  boxShadow: selectedMethod === 'yolo' ? '0 0 16px rgba(0, 245, 212, 0.2)' : 'none'
+                  boxShadow: selectedMethod === 'multi_model' ? '0 0 16px rgba(0, 245, 212, 0.25)' : 'none'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -185,18 +185,80 @@ export const UploadPage: React.FC<UploadPageProps> = ({
                       justifyContent: 'center',
                       color: 'var(--cyan-primary)'
                     }}>
+                      <Layers size={19} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.925rem', color: 'var(--text-primary)' }}>
+                        Method 3: Multi-Model AI Ensemble Pipeline
+                      </div>
+                      <div style={{ fontSize: '0.725rem', color: 'var(--cyan-primary)' }}>
+                        OpenCV • YOLOv8 • U-Net • ResNet
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`badge ${selectedMethod === 'multi_model' ? 'badge-cyan' : 'badge-neutral'}`} style={{ fontSize: '0.7rem' }}>
+                    {selectedMethod === 'multi_model' ? 'Selected' : 'Select'}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0', lineHeight: 1.4 }}>
+                  Coordinated 4-stage pipeline: OpenCV LAB-safe contrast & noise filtering, YOLOv8 localization, U-Net pixel-level segmentation masks, and ResNet visual categorization.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--cyan-primary)', background: 'rgba(0, 245, 212, 0.12)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                    🎯 U-Net Pixel Masks
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: '#A855F7', background: 'rgba(168, 85, 247, 0.12)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                    🧠 ResNet Category
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--emerald-primary)', background: 'rgba(16, 185, 129, 0.12)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                    ⚡ Full Ensemble
+                  </span>
+                </div>
+              </div>
+
+              {/* Method 1: Local YOLO AI Model */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelectMethod('yolo')}
+                style={{
+                  padding: '1.1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: selectedMethod === 'yolo' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                  border: `2px solid ${selectedMethod === 'yolo' ? 'var(--emerald-primary)' : 'var(--border-subtle)'}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.6rem',
+                  boxShadow: selectedMethod === 'yolo' ? '0 0 16px rgba(16, 185, 129, 0.2)' : 'none'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--emerald-primary)'
+                    }}>
                       <Cpu size={19} />
                     </div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: '0.925rem', color: 'var(--text-primary)' }}>
-                        Approach B: Open-Source AI Model (YOLOv8)
+                        Method 1: Local YOLO AI Model (Approach B)
                       </div>
                       <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
                         Ultralytics YOLOv8 • Open-Source Weights
                       </div>
                     </div>
                   </div>
-                  <span className={`badge ${selectedMethod === 'yolo' ? 'badge-cyan' : 'badge-neutral'}`} style={{ fontSize: '0.7rem' }}>
+                  <span className={`badge ${selectedMethod === 'yolo' ? 'badge-emerald' : 'badge-neutral'}`} style={{ fontSize: '0.7rem' }}>
                     {selectedMethod === 'yolo' ? 'Selected' : 'Select'}
                   </span>
                 </div>
@@ -248,7 +310,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({
                     </div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: '0.925rem', color: 'var(--text-primary)' }}>
-                        Approach A: Google Gemini AI Vision (API)
+                        Method 2: Google Gemini AI Vision (Approach A)
                       </div>
                       <div style={{ fontSize: '0.725rem', color: '#A5B4FC' }}>
                         Gemini 2.5 Flash • Multimodal Cloud API

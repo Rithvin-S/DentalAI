@@ -38,17 +38,26 @@ export async function fetchConfigInfo(): Promise<PublicConfig> {
       gemini_model: 'gemini-2.5-flash',
       available_methods: [
         {
-          id: 'yolo',
-          name: 'Approach B: Open-Source AI Model (YOLOv8)',
-          badge: 'Open-Source • Edge AI',
-          model_tag: 'YOLOv8 Dental',
-          description: 'On-device open-source neural network for immediate tooth and gingival lesion detection.',
+          id: 'multi_model',
+          name: 'Method 3: Multi-Model AI Ensemble Pipeline',
+          badge: '4-Stage Ensemble',
+          model_tag: 'OpenCV • YOLOv8 • U-Net • ResNet',
+          description: 'Coordinated 4-stage pipeline combining OpenCV contrast enhancement, YOLOv8 localization, U-Net pixel-level segmentation masks, and ResNet visual categorization.',
           available: true,
           is_default: true
         },
         {
+          id: 'yolo',
+          name: 'Method 1: Local YOLO AI Model (Approach B)',
+          badge: 'Open-Source • Edge AI',
+          model_tag: 'YOLOv8 Dental',
+          description: 'On-device open-source neural network for immediate tooth and gingival lesion detection.',
+          available: true,
+          is_default: false
+        },
+        {
           id: 'gemini',
-          name: 'Approach A: Google Gemini AI Vision (API)',
+          name: 'Method 2: Google Gemini AI Vision API (Approach A)',
           badge: 'Cloud Multimodal API',
           model_tag: 'Gemini 2.5 Flash',
           description: 'Cloud multimodal AI reasoning through Google Gemini Vision API for holistic visual analysis.',
@@ -56,7 +65,7 @@ export async function fetchConfigInfo(): Promise<PublicConfig> {
           is_default: false
         }
       ],
-      version: '2.0.0'
+      version: '2.1.0'
     };
   }
 }
@@ -140,7 +149,25 @@ export function generateClientSimulation(scenario?: string): ScreeningResponse {
           xmin: 0.32,
           ymax: 0.74,
           xmax: 0.68
-        }
+        },
+        segmentation: {
+          is_segmented: true,
+          dice_score: 0.81,
+          coverage_percent: 2.45,
+          structure_label: 'unet_marginal_gingiva_mask',
+          mask_polygons: [
+            [[0.32, 0.65], [0.38, 0.62], [0.48, 0.63], [0.60, 0.64], [0.68, 0.67], [0.64, 0.74], [0.52, 0.73], [0.39, 0.71], [0.32, 0.65]]
+          ]
+        },
+        classification: {
+          category: 'gum_redness',
+          display_title: 'Marginal Gingival Erythema',
+          confidence: 0.88,
+          uncertainty: 'low',
+          probabilities: { 'gum_redness': 0.88, 'sound_enamel': 0.05, 'tooth_discoloration': 0.04, 'suspected_caries': 0.02, 'tooth_chip': 0.01 },
+          clinical_note: 'Erythematous gingival marginal tissue suggestive of localized inflammation.'
+        },
+        models_used: 'OpenCV + YOLOv8 + U-Net + ResNet'
       },
       {
         id: 'fnd-2',
@@ -155,7 +182,25 @@ export function generateClientSimulation(scenario?: string): ScreeningResponse {
           xmin: 0.51,
           ymax: 0.52,
           xmax: 0.65
-        }
+        },
+        segmentation: {
+          is_segmented: true,
+          dice_score: 0.86,
+          coverage_percent: 1.62,
+          structure_label: 'unet_occlusal_caries_mask',
+          mask_polygons: [
+            [[0.51, 0.44], [0.55, 0.38], [0.62, 0.40], [0.65, 0.46], [0.61, 0.52], [0.54, 0.50], [0.51, 0.44]]
+          ]
+        },
+        classification: {
+          category: 'suspected_caries',
+          display_title: 'Suspected Enamel / Fissure Cavitation',
+          confidence: 0.91,
+          uncertainty: 'low',
+          probabilities: { 'suspected_caries': 0.91, 'tooth_discoloration': 0.05, 'sound_enamel': 0.02, 'gum_redness': 0.01, 'tooth_chip': 0.01 },
+          clinical_note: 'Demineralization pattern within occlusal fissure. Clinical probe advised.'
+        },
+        models_used: 'OpenCV + YOLOv8 + U-Net + ResNet'
       },
       {
         id: 'fnd-3',
@@ -170,7 +215,25 @@ export function generateClientSimulation(scenario?: string): ScreeningResponse {
           xmin: 0.28,
           ymax: 0.56,
           xmax: 0.42
-        }
+        },
+        segmentation: {
+          is_segmented: true,
+          dice_score: 0.74,
+          coverage_percent: 1.15,
+          structure_label: 'unet_enamel_stain_mask',
+          mask_polygons: [
+            [[0.28, 0.49], [0.32, 0.44], [0.39, 0.46], [0.42, 0.51], [0.38, 0.56], [0.31, 0.54], [0.28, 0.49]]
+          ]
+        },
+        classification: {
+          category: 'tooth_discoloration',
+          display_title: 'Enamel Chromatic Discoloration',
+          confidence: 0.79,
+          uncertainty: 'moderate',
+          probabilities: { 'tooth_discoloration': 0.79, 'sound_enamel': 0.12, 'suspected_caries': 0.05, 'gum_redness': 0.02, 'tooth_chip': 0.02 },
+          clinical_note: 'Surface chromatic alteration without apparent structural breakdown.'
+        },
+        models_used: 'OpenCV + YOLOv8 + U-Net + ResNet'
       }
     ],
     view_assessments: {

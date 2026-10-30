@@ -61,11 +61,11 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Backend Health & AI Engines Badge */}
           <div 
             className={`badge ${backendOnline ? 'badge-emerald' : 'badge-amber'}`}
-            title={backendOnline ? 'FastAPI Backend, Approach A (Gemini API) & Approach B (Open-Source YOLO) Connected' : 'FastAPI Backend Offline - Running in Client Demo Simulation Mode'}
+            title={backendOnline ? 'FastAPI Backend & Multi-Model Pipeline (OpenCV, YOLOv8, U-Net, ResNet, Gemini) Connected' : 'FastAPI Backend Offline - Running in Client Demo Simulation Mode'}
             style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}
           >
             <span className="pulse-dot" style={{ color: backendOnline ? 'var(--emerald-primary)' : 'var(--amber-primary)' }} />
-            <span>{backendOnline ? 'Approach A & B Ready' : 'Demo Mode'}</span>
+            <span>{backendOnline ? 'OpenCV • YOLOv8 • U-Net • ResNet Ready' : 'Demo Mode'}</span>
           </div>
 
           {/* Capture Guide Button */}

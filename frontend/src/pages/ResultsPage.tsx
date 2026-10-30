@@ -8,7 +8,8 @@ import {
   Crosshair,
   Sparkles,
   Info,
-  Cpu
+  Cpu,
+  Layers
 } from 'lucide-react';
 import type { ScreeningResponse, ViewType, DetectionMethod } from '../types/screening';
 import { AnnotatedImage } from '../components/AnnotatedImage';
@@ -31,7 +32,10 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
   const [activeView, setActiveView] = useState<ViewType>('front');
   const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
 
-  const isGemini = response.detection_method === 'gemini' || (response.model_name && response.model_name.includes('Gemini'));
+  const isMultiModel = response.detection_method === 'multi_model' || (response.model_name && response.model_name.includes('Multi-Model'));
+  const isGemini = !isMultiModel && (response.detection_method === 'gemini' || (response.model_name && response.model_name.includes('Gemini')));
+  const isYolo = !isMultiModel && !isGemini;
+
   const findingsForCurrentView = response.findings.filter((f) => f.view === activeView);
   const totalFindings = response.findings.length;
   const isClean = response.findings.length === 0 && response.status === 'completed';
@@ -58,15 +62,20 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
               <span className="badge badge-cyan">
                 Visual Screening Summary
               </span>
-              {isGemini ? (
+              {isMultiModel ? (
+                <span className="badge badge-cyan" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(0, 245, 212, 0.12)', border: '1px solid var(--cyan-primary)' }}>
+                  <Layers size={13} color="var(--cyan-primary)" />
+                  <span>Method 3: Multi-Model AI Ensemble (OpenCV • YOLOv8 • U-Net • ResNet)</span>
+                </span>
+              ) : isGemini ? (
                 <span className="badge badge-blue" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Sparkles size={12} color="#818CF8" />
-                  <span>Approach A: Google Gemini AI Vision (API)</span>
+                  <span>Method 2: Google Gemini AI Vision (API)</span>
                 </span>
               ) : (
                 <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Cpu size={12} color="var(--emerald-primary)" />
-                  <span>Approach B: Open-Source AI Model (YOLOv8)</span>
+                  <span>Method 1: Open-Source AI Model (YOLOv8)</span>
                 </span>
               )}
               <span className="mono-text" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -79,52 +88,92 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
             </h1>
             
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Completed at {new Date(response.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • 3 Intraoral Views Analyzed • AI Engine: <strong style={{ color: 'var(--text-primary)' }}>{response.model_name || (isGemini ? 'Approach A: Gemini 2.5 Flash' : 'Approach B: Open-Source YOLOv8')}</strong>
+              Completed at {new Date(response.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • 3 Intraoral Views Analyzed • AI Engine: <strong style={{ color: 'var(--text-primary)' }}>{response.model_name || (isMultiModel ? 'Method 3: Multi-Model AI Ensemble' : isGemini ? 'Method 2: Gemini 2.5 Flash' : 'Method 1: Open-Source YOLOv8')}</strong>
             </p>
           </div>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Action Buttons with Multi-Model Comparison */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
             {onReAnalyze && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={isAnalyzing}
-                onClick={() => onReAnalyze(isGemini ? 'yolo' : 'gemini')}
-                style={{
-                  fontSize: '0.825rem',
-                  border: `1px solid ${isGemini ? 'rgba(0, 245, 212, 0.4)' : 'rgba(99, 102, 241, 0.4)'}`,
-                  background: isGemini ? 'rgba(0, 245, 212, 0.08)' : 'rgba(99, 102, 241, 0.1)'
-                }}
-                id="compare-method-btn"
-                title="Run detection on the same photos using the alternative AI method"
-              >
-                {isGemini ? <Cpu size={16} color="var(--cyan-primary)" /> : <Sparkles size={16} color="#818CF8" />}
-                <span>
-                  {isAnalyzing ? 'Analyzing...' : isGemini ? 'Compare with Approach B (Open-Source YOLO)' : 'Compare with Approach A (Gemini API)'}
-                </span>
-              </button>
+              <>
+                {!isMultiModel && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={isAnalyzing}
+                    onClick={() => onReAnalyze('multi_model')}
+                    style={{
+                      fontSize: '0.785rem',
+                      border: '1px solid rgba(0, 245, 212, 0.4)',
+                      background: 'rgba(0, 245, 212, 0.08)'
+                    }}
+                    id="compare-multimodel-btn"
+                    title="Compare with Method 3: 4-Stage Multi-Model Ensemble"
+                  >
+                    <Layers size={14} color="var(--cyan-primary)" />
+                    <span>Compare Multi-Model Pipeline</span>
+                  </button>
+                )}
+
+                {!isYolo && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={isAnalyzing}
+                    onClick={() => onReAnalyze('yolo')}
+                    style={{
+                      fontSize: '0.785rem',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      background: 'rgba(16, 185, 129, 0.08)'
+                    }}
+                    id="compare-yolo-btn"
+                    title="Compare with Method 1: Local YOLOv8"
+                  >
+                    <Cpu size={14} color="var(--emerald-primary)" />
+                    <span>Compare YOLOv8</span>
+                  </button>
+                )}
+
+                {!isGemini && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={isAnalyzing}
+                    onClick={() => onReAnalyze('gemini')}
+                    style={{
+                      fontSize: '0.785rem',
+                      border: '1px solid rgba(99, 102, 241, 0.4)',
+                      background: 'rgba(99, 102, 241, 0.08)'
+                    }}
+                    id="compare-gemini-btn"
+                    title="Compare with Method 2: Gemini API"
+                  >
+                    <Sparkles size={14} color="#818CF8" />
+                    <span>Compare Gemini API</span>
+                  </button>
+                )}
+              </>
             )}
 
             <button
               type="button"
               className="btn btn-secondary"
               onClick={handlePrint}
-              style={{ fontSize: '0.825rem' }}
+              style={{ fontSize: '0.785rem' }}
               id="print-report-btn"
               title="Print or export PDF report for your dentist"
             >
-              <Printer size={16} />
-              <span>Print / Export Report</span>
+              <Printer size={15} />
+              <span>Print / Export</span>
             </button>
             <button
               type="button"
               className="btn btn-primary"
               onClick={onReset}
-              style={{ fontSize: '0.825rem' }}
+              style={{ fontSize: '0.785rem' }}
               id="new-screening-btn"
             >
-              <RotateCcw size={16} />
+              <RotateCcw size={15} />
               <span>New Screening</span>
             </button>
           </div>
@@ -168,9 +217,9 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
       </div>
 
       {/* Main Analysis Workspace */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: '1.5rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: '1.5rem', alignItems: 'start' }}>
         
-        {/* Left Column: Image Viewer with Interactive Annotations */}
+        {/* Left Column: Image Viewer with Interactive Annotations & Segmentation Masks */}
         <div className="glass-panel" style={{ padding: '1.5rem' }}>
           
           {/* View Selection Tabs */}
@@ -201,7 +250,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
                     <span 
                       style={{
                         background: isActive ? '#070B14' : 'rgba(0, 245, 212, 0.2)',
-                        color: isActive ? 'var(--cyan-primary)' : 'var(--cyan-primary)',
+                        color: 'var(--cyan-primary)',
                         padding: '0.1rem 0.45rem',
                         borderRadius: '999px',
                         fontSize: '0.7rem',
@@ -216,7 +265,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
             })}
           </div>
 
-          {/* Quality Notice Banner for Current View if poor quality (FR-15) */}
+          {/* Quality Notice Banner for Current View if poor quality */}
           {currentViewAssessment.status === 'poor_quality' && (
             <div style={{
               background: 'rgba(245, 158, 11, 0.1)',
@@ -237,7 +286,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
             </div>
           )}
 
-          {/* Interactive Annotated Image */}
+          {/* Interactive Annotated Image with Masks and Boxes */}
           {imageUrls[activeView] && (
             <AnnotatedImage
               imageUrl={imageUrls[activeView]}
@@ -249,7 +298,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
           )}
         </div>
 
-        {/* Right Column: Findings List for Selected View */}
+        {/* Right Column: Findings List for Selected View with 4-Stage Model Inspection */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
           <div className="glass-panel" style={{ padding: '1.5rem' }}>
@@ -262,7 +311,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
               </span>
             </div>
 
-            {/* If No Findings for this View (FR-14) */}
+            {/* If No Findings for this View */}
             {findingsForCurrentView.length === 0 ? (
               <div style={{
                 padding: '2rem 1.5rem',
@@ -280,10 +329,12 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
                 </p>
               </div>
             ) : (
-              /* List of Findings */
+              /* List of Findings with 4-Stage Breakdown */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 {findingsForCurrentView.map((finding) => {
                   const isSelected = activeFindingId === finding.id;
+                  const seg = finding.segmentation;
+                  const cls = finding.classification;
 
                   return (
                     <div
@@ -293,6 +344,14 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
                       role="button"
                       tabIndex={0}
                       aria-label={`View finding ${finding.title}`}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: 'var(--radius-md)',
+                        background: isSelected ? 'rgba(0, 245, 212, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                        border: `1px solid ${isSelected ? 'var(--cyan-primary)' : 'var(--border-subtle)'}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
                     >
                       {/* Finding Card Header */}
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.45rem' }}>
@@ -316,16 +375,76 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
                         {finding.description}
                       </p>
 
+                      {/* Multi-Model Coordinated Evidence (U-Net & ResNet) */}
+                      {(seg || cls) && (
+                        <div style={{
+                          marginTop: '0.65rem',
+                          padding: '0.65rem',
+                          borderRadius: '6px',
+                          background: 'rgba(0, 0, 0, 0.25)',
+                          border: '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.45rem',
+                          fontSize: '0.74rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--cyan-primary)', fontWeight: 600 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <Layers size={13} /> Multi-Model Inspection Details
+                            </span>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                              OpenCV • YOLOv8 • U-Net • ResNet
+                            </span>
+                          </div>
+
+                          {/* U-Net Mask Metrics */}
+                          {seg && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                              <span>U-Net Pixel Mask:</span>
+                              <span className="mono-text" style={{ color: 'var(--text-primary)' }}>
+                                {seg.coverage_percent ? `${seg.coverage_percent}% view area` : 'Contoured'} (Dice: {seg.dice_score ? `${Math.round(seg.dice_score * 100)}%` : 'Active'})
+                              </span>
+                            </div>
+                          )}
+
+                          {/* ResNet Classification & Uncertainty */}
+                          {cls && (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                                <span>ResNet Classification:</span>
+                                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                  {cls.display_title || cls.category} ({Math.round(cls.confidence * 100)}%)
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                                <span>Uncertainty Status:</span>
+                                <span style={{
+                                  fontSize: '0.68rem',
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '4px',
+                                  background: cls.uncertainty === 'review_recommended' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                  color: cls.uncertainty === 'review_recommended' ? 'var(--amber-primary)' : 'var(--emerald-primary)',
+                                  fontWeight: 600
+                                }}>
+                                  {cls.uncertainty === 'review_recommended' ? '⚠️ Clinical Review Advised' : '✓ High Model Concordance'}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+
                       {/* Card Footer Info */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)', fontSize: '0.725rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: finding.localization ? 'var(--cyan-primary)' : 'var(--text-muted)' }}>
                           <Crosshair size={13} />
-                          <span>{finding.localization ? 'Localized on image' : 'Image-wide pattern'}</span>
+                          <span>{finding.localization ? 'YOLO Box Mapped' : 'Image-wide pattern'}</span>
                         </div>
 
                         {finding.confidence !== null && (
                           <span className="mono-text" style={{ color: 'var(--text-muted)' }}>
-                            Model score: {Math.round(finding.confidence * 100)}%
+                            Detector conf: {Math.round(finding.confidence * 100)}%
                           </span>
                         )}
                       </div>
@@ -336,7 +455,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
             )}
           </div>
 
-          {/* Mandatory Dentist Consultation Callout (FR-18) */}
+          {/* Mandatory Dentist Consultation Callout */}
           <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid var(--cyan-primary)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
               <div style={{ color: 'var(--cyan-primary)', marginTop: '2px' }}>
@@ -351,7 +470,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
             </div>
           </div>
 
-          {/* Clinical Limitations Accordion (FR-11, Appendix A) */}
+          {/* Clinical Limitations Accordion */}
           <div className="glass-panel" style={{ padding: '1.25rem' }}>
             <h4 style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Info size={16} color="var(--blue-primary)" /> Inherent Visual Screening Limitations

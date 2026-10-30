@@ -19,7 +19,7 @@ export const App: React.FC = () => {
   const [backendOnline, setBackendOnline] = useState(false);
   const [uploadStates, setUploadStates] = useState<Record<ViewType, ViewUploadState>>(initialUploadStates);
   const [consentAcknowledged, setConsentAcknowledged] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState<DetectionMethod>('yolo');
+  const [selectedMethod, setSelectedMethod] = useState<DetectionMethod>('multi_model');
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isConsentOpen, setIsConsentOpen] = useState(false);
   
@@ -140,7 +140,9 @@ export const App: React.FC = () => {
 
     setIsAnalyzing(true);
     setAnalysisPhase(
-      activeMethod === 'gemini' 
+      activeMethod === 'multi_model'
+        ? 'OpenCV: Performing color-safe contrast calibration (CLAHE on L-channel)...'
+        : activeMethod === 'gemini' 
         ? 'Connecting to Google Gemini Multimodal Vision API...' 
         : 'Validating photographic views and orientation...'
     );
@@ -148,7 +150,9 @@ export const App: React.FC = () => {
     // UX progress phases tailored to detection engine
     const timer1 = setTimeout(() => {
       setAnalysisPhase(
-        activeMethod === 'gemini'
+        activeMethod === 'multi_model'
+          ? 'YOLOv8: Localizing dental findings and candidate bounding boxes...'
+          : activeMethod === 'gemini'
           ? 'Executing Gemini 2.5 Flash dental visual reasoning...'
           : 'Executing fine-tuned YOLOv8 dental model inference...'
       );
@@ -156,7 +160,9 @@ export const App: React.FC = () => {
 
     const timer2 = setTimeout(() => {
       setAnalysisPhase(
-        activeMethod === 'gemini'
+        activeMethod === 'multi_model'
+          ? 'U-Net & ResNet: Computing pixel segmentation masks & uncertainty distribution...'
+          : activeMethod === 'gemini'
           ? 'Validating spatial localization and structured JSON findings...'
           : 'Normalizing localization coordinates and compiling report...'
       );

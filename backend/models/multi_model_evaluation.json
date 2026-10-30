@@ -1,0 +1,29 @@
+{
+  "pipeline": "OpenCV \u2022 YOLOv8 \u2022 U-Net \u2022 ResNet",
+  "dataset_split": {
+    "train_images": 33,
+    "val_images": 6,
+    "test_images": 9,
+    "patient_level_isolation": true
+  },
+  "unet_segmentation": {
+    "loss": "Dice + Binary Cross-Entropy",
+    "test_mean_dice_score": 0.3135,
+    "test_mean_iou": 0.2034111111111111,
+    "weights_path": "backend/models/resnet/best.pth"
+  },
+  "resnet_classification": {
+    "architecture": "ResNet-18",
+    "classes": [
+      "suspected_caries",
+      "gum_redness",
+      "tooth_discoloration",
+      "tooth_chip",
+      "oral_lesion",
+      "sound_enamel"
+    ],
+    "test_accuracy": 1.0,
+    "uncertainty_detection": true,
+    "weights_path": "backend/models/resnet/best.pth"
+  }
+}

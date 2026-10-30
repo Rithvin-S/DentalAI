@@ -2,7 +2,7 @@ export type ViewType = 'front' | 'upper' | 'lower';
 
 export type ScreeningStatusType = 'completed' | 'unable_to_assess' | 'failed';
 
-export type DetectionMethod = 'yolo' | 'gemini';
+export type DetectionMethod = 'multi_model' | 'yolo' | 'gemini';
 
 export interface DetectionMethodInfo {
   id: DetectionMethod;
@@ -21,6 +21,25 @@ export interface BoundingBox {
   xmax: number; // 0.0 to 1.0 normalized
 }
 
+export interface SegmentationInfo {
+  is_segmented: boolean;
+  mask_polygons?: number[][][]; // array of polygons, each having [x, y] in 0.0 - 1.0
+  mask_base64?: string; // data:image/png;base64,...
+  dice_score?: number;
+  coverage_ratio?: number;
+  coverage_percent?: number;
+  structure_label?: string;
+}
+
+export interface ClassificationInfo {
+  category: string;
+  display_title?: string;
+  confidence: number;
+  uncertainty: 'low' | 'moderate' | 'review_recommended';
+  probabilities?: Record<string, number>;
+  clinical_note?: string;
+}
+
 export interface Finding {
   id: string;
   view: ViewType;
@@ -30,6 +49,9 @@ export interface Finding {
   confidence: number | null;
   severity?: 'mild_concern' | 'moderate_concern' | 'review_recommended' | null;
   localization: BoundingBox | null;
+  segmentation?: SegmentationInfo | null;
+  classification?: ClassificationInfo | null;
+  models_used?: string | null;
 }
 
 export interface ViewAssessment {
